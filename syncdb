@@ -1198,7 +1198,7 @@ search_replace_local () {
     # solution is to swap localhost for 127.0.0.1.
     #[[ "$l_db_host" == "localhost" ]] && l_db_host="127.0.0.1"
 
-    cd $l_bak_dir
+    cd $l_web_dir/$l_bak_dir
 
     if [[ "${r_web_addr_alt-}" ]]
     then
