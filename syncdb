@@ -30,7 +30,6 @@ then
     . $temp_file
 fi
 
-
 # ========================================
 #  OPTIONAL VARIABLES (you almost certainly won't have to touch these)
 # ========================================
@@ -43,18 +42,16 @@ r_bak_dir=.bak
 l_bak_name2=latest-local.mssql 
 r_bak_name2=latest-remote.mssql
 
-# $l_site_dir is the absolute path to your local site. This is automatically
-# deduced based on the directory into which you moved SyncDB.
-l_site_dir=${PWD}
+
 # $l_web_dir is the name of your site's root directory (same as $l_site_dir,
 # but with the preceding directory path stripped off).
-l_web_dir=${PWD##*/}
+l_web_dir="${l_site_dir}/web"
 
 # Path expansions.
-l_bak_path2=$l_site_dir/$l_bak_dir/$l_bak_name2
-l_upload_path=$l_site_dir/$l_upload_dir
+l_bak_path2=$l_web_dir/$l_bak_dir/$l_bak_name2
+l_upload_path=$l_web_dir/$l_upload_dir
 r_upload_path=$r_web_dir/$r_upload_dir
-r_site_dir=$HOME/$r_web_dir
+r_site_dir=$r_web_dir
 
 # The --port flag has to be uppercase for `scp`, lowercase for `ssh`. sigh. 
 ssh_port_define="-p $r_port "
@@ -62,6 +59,8 @@ scp_port_define="-P $r_port "
 
 ssh_port=${r_port:+$ssh_port_define}
 scp_port=${r_port:+$scp_port_define}
+
+syncdb_dir=$(pwd)
 
 # ========================================
 #  GLOBAL CONSTANTS (no need to customize)
@@ -285,6 +284,9 @@ get_local_db_details () {
     elif [[ -f wp-config.php ]]
     then
         local_config_file=wp-config.php
+    elif [[ -r $ENV_FILE ]]
+    then
+        local_config_file=$ENV_FILE
     else
         echo "${red}$msgError$reset: Could not locate local-config.php or wp-config.php"
         exit 1
@@ -605,12 +607,21 @@ return_local_nonstandard () {
 # login details from a normal config file.
 # ---------------------------------------------------------
 return_local_standard () {
-
-    #grep the config file for the MySQL login details
-    l_db_name=$(sed -n "s/.*DB_NAME', '\([^']*\)'.*/\1/p" $local_config_file)
-    l_db_user=$(sed -n "s/.*DB_USER', '\([^']*\)'.*/\1/p" $local_config_file)
-    l_db_pass=$(sed -n "s/.*DB_PASSWORD', '\([^']*\)'.*/\1/p" $local_config_file)
-    l_db_host=$(sed -n "s/.*DB_HOST', '\([^']*\)'.*/\1/p" $local_config_file)
+    if [[ -r $ENV_FILE ]]
+    then
+        # THE GOD GREP grep -oP '(?<=DB_USER=)([A-Za-z0-9.]*)'  .env
+        echo "${green}Using .env file $reset"
+        l_db_name=$(grep -oP "(?<=DB_NAME=\')(.*)(?=')" $local_config_file)
+        l_db_user=$(grep -oP "(?<=DB_USER=\')(.*)(?=')" $local_config_file)
+        l_db_pass=$(grep -oP "(?<=DB_PASSWORD=\')(.*)(?=')" $local_config_file)
+        l_db_host=$(grep -oP "(?<=DB_HOST=\')(.*)(?=')" $local_config_file)
+    else
+        #grep the config file for the MySQL login details
+        l_db_name=$(sed -n "s/.*DB_NAME', '\([^']*\)'.*/\1/p" $local_config_file)
+        l_db_user=$(sed -n "s/.*DB_USER', '\([^']*\)'.*/\1/p" $local_config_file)
+        l_db_pass=$(sed -n "s/.*DB_PASSWORD', '\([^']*\)'.*/\1/p" $local_config_file)
+        l_db_host=$(sed -n "s/.*DB_HOST', '\([^']*\)'.*/\1/p" $local_config_file)
+    fi
 }
 
 # ---------------------------------------------------------
@@ -621,11 +632,19 @@ return_local_standard () {
 return_remote_standard () {
 
     #grep the config file for the MySQL login details
-    r_db_name=$(sed -n "s/.*DB_NAME', '\([^']*\)'.*/\1/p" wp-config.php)
-    r_db_user=$(sed -n "s/.*DB_USER', '\([^']*\)'.*/\1/p" wp-config.php)
-    r_db_pass=$(sed -n "s/.*DB_PASSWORD', '\([^']*\)'.*/\1/p" wp-config.php)
-    r_db_host=$(sed -n "s/.*DB_HOST', '\([^']*\)'.*/\1/p" wp-config.php)
-
+    if [[ -r $R_ENV_FILE ]]
+    then
+        echo "${green}Using .env file $reset"
+        r_db_name=$(grep -oP "(?<=DB_NAME=\')(.*)(?=')" $R_ENV_FILE)
+        r_db_user=$(grep -oP "(?<=DB_USER=\')(.*)(?=')" $R_ENV_FILE)
+        r_db_pass=$(grep -oP "(?<=DB_PASSWORD=\')(.*)(?=')"  $R_ENV_FILE)
+        r_db_host=$(grep -oP "(?<=DB_HOST=\')(.*)(?=')" $R_ENV_FILE | echo 127.0.0.1)
+    else
+        r_db_name=$(sed -n "s/.*DB_NAME', '\([^']*\)'.*/\1/p" wp-config.php)
+        r_db_user=$(sed -n "s/.*DB_USER', '\([^']*\)'.*/\1/p" wp-config.php)
+        r_db_pass=$(sed -n "s/.*DB_PASSWORD', '\([^']*\)'.*/\1/p" wp-config.php)
+        r_db_host=$(sed -n "s/.*DB_HOST', '\([^']*\)'.*/\1/p" wp-config.php)
+    fi
 }
 
 # ---------------------------------------------------------
@@ -681,7 +700,7 @@ backup_remote_db () {
 
     echo "${blue}Backing up remote database...$reset"
 
-    cd $HOME/$r_web_dir
+    cd $r_web_dir
 
     if [ ! -d $r_bak_dir ]
     then
@@ -699,9 +718,11 @@ backup_remote_db () {
     if [[ $? -eq 1 ]]
     then 
         echo ${red}$msgError$reset Could not backup remote database.$reset
+        echo "Why does this not work" >> testFile
         exit 1
     else
         echo
+        echo "I guess it worked" >> testFile
         echo "${green}$msgSuccess$reset Remote database dumped to: $(pwd)/${r_bak_name1}.bz2 and $(pwd)/${r_bak_name2}.bz2"
         echo
     fi
@@ -709,7 +730,6 @@ backup_remote_db () {
     #echo "cp ${r_bak_name1}.bz2 ${r_bak_name2}.bz2"
     cp ${r_bak_name1}.bz2 ${r_bak_name2}.bz2
     echo
-
 }
 
 
@@ -726,13 +746,13 @@ download_remote_db () {
         mkdir $l_bak_dir 
     fi 
 
-    cd $l_bak_dir
+    cd $l_web_dir/$l_bak_dir
 
-    echo "scp -q $scp_port$r_user@$r_host:~/$r_web_dir/$r_bak_dir/${r_bak_name2}.bz2 ."
+    echo "scp -q $scp_port$r_user@$r_host:$r_web_dir/$r_bak_dir/${r_bak_name2}.bz2 ."
 
     set -o pipefail
 
-    scp -q "$scp_port"$r_user@$r_host:~/$r_web_dir/$r_bak_dir/${r_bak_name2}.bz2 .
+    scp -q "$scp_port"$r_user@$r_host:$r_web_dir/$r_bak_dir/${r_bak_name2}.bz2 .
 
     if [ $? == 0 -a -f ${r_bak_name2}.bz2 ]; then
         echo
@@ -753,7 +773,7 @@ backup_local_db () {
 
     echo "${blue}Backing up the local database...$reset" 
 
-    cd $l_site_dir
+    cd $l_web_dir
 
     if [ ! -d $l_bak_dir ]
     then
@@ -813,7 +833,7 @@ EOF
     echo "${blue}Replacing contents of local database...$reset"
     echo
 
-    cd $l_site_dir/$l_bak_dir
+    cd $l_web_dir/$l_bak_dir
 
     set -o pipefail
 
@@ -861,7 +881,7 @@ upload_script () {
 
     echo "${blue}Uploading sync script...$reset"
 
-    cd "$l_site_dir"
+    cd "$syncdb_dir"
 
     # check if we've already checked the remote path structure. If not, check now
     [[ "$checked" ]] || do_check_for_dirs
@@ -889,10 +909,9 @@ upload_script () {
     then
         upload_temp=$temp_file
     fi
-
-    echo "scp -q $scp_port$(basename $0) $config_file ${upload_temp-} $r_user@$r_host:~/$r_web_dir/"
+    echo "scp -q $scp_port$(basename $0) $config_file ${upload_temp-} $r_user@$r_host:$r_web_dir"
     echo
-    scp -q ${scp_port}$(basename $0) $config_file ${upload_temp-} $r_user@$r_host:~/$r_web_dir/
+    scp -q ${scp_port}$(basename $0) $config_file ${upload_temp-} $r_user@$r_host:$r_web_dir
     echo
     echo "$green$msgSuccess$reset Uploaded $(basename $0) and $config_file to: $r_web_dir."
 
@@ -911,8 +930,7 @@ do_remote_backup () {
     [[ "$checked" ]] || do_check_for_dirs
 
     echo "ssh -qt $ssh_port$r_user@$r_host cd $r_web_dir; chmod +x $(basename $0); ./$(basename $0) backup_remote_db;"
-    ssh -qt $ssh_port$r_user@$r_host "cd $r_web_dir; if [ ! -f .bashrc -a -f /etc/profile ]; then . /etc/profile; fi; ./$(basename $0) backup_remote_db;"
-
+    ssh $r_user@$r_host "cd $r_web_dir; if [ ! -f .bashrc -a -f /etc/profile ]; then . /etc/profile; fi; ./$(basename $0) backup_remote_db;"
 }
 
 # ---------------------------------------------------------
@@ -927,12 +945,12 @@ upload_local_db () {
     # check if we've already checked the remote path structure. If not, check now
     [[ "$checked" ]] || do_check_for_dirs
 
-    cd $l_site_dir/$l_bak_dir
+    cd $l_web_dir/$l_bak_dir
 
     if [[ -f "${l_bak_path2}.bz2" ]]
     then
-        echo "scp -q $scp_port${l_bak_path2}.bz2 $r_user@$r_host:~/$r_web_dir/$r_bak_dir"
-        scp -q ${scp_port}${l_bak_path2}.bz2 $r_user@$r_host:~/$r_web_dir/$r_bak_dir
+        echo "scp -q $scp_port${l_bak_path2}.bz2 $r_user@$r_host:$r_web_dir/$r_bak_dir"
+        scp -q ${scp_port}${l_bak_path2}.bz2 $r_user@$r_host:$r_web_dir/$r_bak_dir
     else
         echo "$red$msgError$reset Could not locate the local dump file at $(pwd)/${l_bak_name2}.bz2."
         echo
@@ -1080,7 +1098,7 @@ EOF
     echo
     echo "${blue}Replacing contents of remote database...$reset"
     echo
-    cd $HOME/$r_web_dir/$r_bak_dir
+    cd $r_web_dir/$r_bak_dir
 
     echo "bunzip2 < ${l_bak_name2}.bz2 | mysql -u$r_db_user -p$r_db_pass -h $r_db_host $r_db_name --show-warnings"
 
@@ -1148,7 +1166,7 @@ install_search_scripts () {
 # ---------------------------------------------------------
 search_replace_local () {
 
-    cd $l_site_dir/$l_bak_dir
+    cd $l_web_dir/$l_bak_dir
 
     install_search_scripts
 
@@ -1232,7 +1250,7 @@ search_replace_remote () {
 
     check_if_chosen
 
-    cd $HOME/$r_web_dir/$r_bak_dir
+    cd $r_web_dir/$r_bak_dir
 
     install_search_scripts
 
@@ -1317,8 +1335,8 @@ rsync_push () {
     echo
     echo "${blue}Synchronizing uploads directories...$reset"
     echo
-    echo "rsync -qrave "ssh -q $ssh_port-l $r_user" $l_upload_path $r_host:$r_upload_path"
-    rsync -qrave "ssh -q $ssh_port-l $r_user" "$l_upload_path" "$r_host":"$r_upload_path"
+    echo "rsync --omit-dir-times -qrave "ssh -q $ssh_port-l $r_user" $l_upload_path $r_host:$r_upload_path"
+    rsync --omit-dir-times -qrave "ssh -q $ssh_port-l $r_user" "$l_upload_path" "$r_host":"$r_upload_path"
 } 
 
 # ---------------------------------------------------------
@@ -1330,8 +1348,8 @@ rsync_pull () {
     echo
     echo "${blue}Synchronizing uploads directories...$reset"
     echo
-    echo "rsync -qrave "ssh -q $ssh_port-l $r_user" "$r_host":"$r_upload_path" "$l_upload_path""
-    rsync -qrave "ssh -q $ssh_port-l $r_user" "$r_host":"$r_upload_path" "$l_upload_path"
+    echo "rsync --omit-dir-times -qrave "ssh -q $ssh_port-l $r_user" "$r_host":"$r_upload_path" "$l_upload_path""
+    rsync --omit-dir-times -qrave "ssh -q $ssh_port-l $r_user" "$r_host":"$r_upload_path" "$l_upload_path"
 } 
 
 # ---------------------------------------------------------
@@ -1340,7 +1358,7 @@ rsync_pull () {
 # ---------------------------------------------------------
 say_goodbye () {
     echo
-    cd $l_site_dir
+    cd $l_web_dir
     if [[ -f $temp_file ]]
     then
         rm $temp_file
@@ -1359,22 +1377,24 @@ say_goodbye () {
 # Execute a sequence of commands to update your remote server with the contents
 # of your local server.
 # ---------------------------------------------------------
+
+timeout=8
 push () {
 
     test_ssh
 
     backup_local_db
-
+    sleep $timeout
     upload_local_db
-
+    sleep $timeout
     upload_script
-
+    sleep $timeout
     do_remote_backup
-
+    sleep $timeout
     do_remote_replace
-
+    sleep $timeout
     do_search_replace_remote
-
+    sleep $timeout
     rsync_push
 
     say_goodbye
@@ -1389,19 +1409,19 @@ push () {
 pull () {
 
     test_ssh
-
+    
     upload_script
-
+    sleep $timeout
     do_remote_backup
-
+    sleep $timeout
     download_remote_db
-
+    sleep $timeout
     backup_local_db
-
+    sleep $timeout
     replace_local_db
-
+    sleep $timeout
     search_replace_local
-
+    sleep $timeout
     rsync_pull
 
     say_goodbye

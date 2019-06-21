@@ -2,14 +2,15 @@
 #  SITE-SPECIFIC VARIABLES (mandatory for each site)
 # ===================================================
 
-r_user=myusername
-r_host=ftp.mywebsite.com
-r_web_dir=public_html
+r_user=root
+r_host=142.93.124.179
+r_web_dir=/var/www/html/forestry/web
 r_port= # usually left blank
 
-l_web_addr=dev.mywebsite.com
-r_web_addr=mywebsite.com
+l_web_addr=forestry.local
+r_web_addr=forestry.viewnewsite.com
 r_web_addr_alt= # usually left blank (see note below)
+l_site_dir=/var/www/html/forestry
 
 
     # $r_user is your FTP username. It is used to ssh into your site: `ssh
@@ -39,8 +40,8 @@ r_web_addr_alt= # usually left blank (see note below)
     # function will prompt you each time to ask which remote site you are trying to
     # sync with, your dev or your production/live site.
 
-l_upload_dir=wp-content/uploads/
-r_upload_dir=wp-content/uploads/
+l_upload_dir=app/uploads/
+r_upload_dir=app/uploads/
 
     # ---------------------------------------------------------
     # uploads directories
@@ -68,9 +69,9 @@ no_drop= # set to true if your host sucks
 #l_mysql=
 #l_mysqldump=
 #l_php=
-l_mysql=/Applications/MAMP/Library/bin/mysql
-l_mysqldump=/Applications/MAMP/Library/bin/mysqldump
-l_php=/Applications/MAMP/bin/php/php5.3.28/bin/php
+l_mysql=/usr/bin/mysql
+l_mysqldump=/usr/bin/mysqldump
+l_php=/usr/bin/php
 
     # ---------------------------------------------------------
     # Custom binaries (local)
@@ -84,7 +85,7 @@ l_php=/Applications/MAMP/bin/php/php5.3.28/bin/php
     # 
     # ---------------------------------------------------------
 
-auto_update=true
+auto_update=false
 
     # ---------------------------------------------------------
     # Auto-Update Flag
@@ -92,4 +93,11 @@ auto_update=true
     # newer versions of itself. If a newer version exists, it prompts the user to
     # download. If you prefer to disable this feature, set auto_update=false or
     # leave it blank.
+    # ---------------------------------------------------------
+
+ENV_FILE=/var/www/html/forestry/.env
+R_ENV_FILE=/var/www/html/forestry/.env
+
+    # ---------------------------------------------------------
+    # Stuff for now
     # ---------------------------------------------------------
