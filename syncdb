@@ -60,7 +60,11 @@ scp_port_define="-P $r_port "
 ssh_port=${r_port:+$ssh_port_define}
 scp_port=${r_port:+$scp_port_define}
 
+# The directory that syncdb is located in
 syncdb_dir=$(pwd)
+
+# Amount of time to wait inbetween running functions, neccessary for ssh limit configurations
+timeout=8
 
 # ========================================
 #  GLOBAL CONSTANTS (no need to customize)
@@ -1378,7 +1382,7 @@ say_goodbye () {
 # of your local server.
 # ---------------------------------------------------------
 
-timeout=8
+
 push () {
 
     test_ssh
